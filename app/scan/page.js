@@ -55,7 +55,7 @@ export default function Scan() {
     };
   }, []);
 
-  const tone = !result ? "" : !result.valid ? "bad" : result.alreadyScanned ? "warn" : "ok";
+  const tone = !result ? "" : !result.valid ? "bad" : "ok";
 
   return (
     <>
@@ -81,19 +81,14 @@ export default function Scan() {
       </div>
       {result && (
         <div className="card status">
-          <div className={`icon ${tone}`}>{result.valid ? (result.alreadyScanned ? "!" : "✓") : "✕"}</div>
+          <div className={`icon ${tone}`}>{result.valid ? "✓" : "✕"}</div>
           {result.valid ? (
             <>
-              <h1>{result.alreadyScanned ? "Valid, already scanned" : "Valid"}</h1>
+              <h1>Valid</h1>
               {result.photo && <img src={result.photo} alt="" style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", margin: "0 auto 12px", display: "block" }} />}
               <p><b>{result.label}</b></p>
               <p className="muted">Department: {result.department || "—"}</p>
               {result.zone && <p className="muted">Zone: {result.zone}</p>}
-              <p className="muted">
-                {result.alreadyScanned
-                  ? `Scan #${result.scanCount}. First scanned ${new Date(result.firstScannedAt).toLocaleString()}`
-                  : "First scan recorded"}
-              </p>
             </>
           ) : (
             <h1>Invalid code</h1>

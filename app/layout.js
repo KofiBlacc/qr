@@ -31,6 +31,10 @@ th{text-align:left;color:var(--muted);font-weight:500;padding:8px 6px;border-bot
 td{padding:10px 6px;border-bottom:1px solid var(--line)}
 img{max-width:100%;border-radius:8px}
 #reader{border-radius:12px;overflow:hidden}
+details>summary{cursor:pointer;font-weight:600;font-size:17px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"▾";color:var(--muted)}
+details[open]>summary::after{content:"▴"}
 @media print{body *{visibility:hidden}.printable,.printable *{visibility:visible}.no-print,.no-print *{visibility:hidden}.printable{position:absolute;left:0;top:0;width:100%;border:0}}
 `;
 

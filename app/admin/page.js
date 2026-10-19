@@ -25,14 +25,44 @@ function drawCard(c) {
   });
 }
 
+// A card the admin can fold away.
+function Section({ title, open = false, children }) {
+  return (
+    <details className="card" open={open}>
+      <summary>{title}</summary>
+      <div style={{ marginTop: 14 }}>{children}</div>
+    </details>
+  );
+}
+
+function Chips({ items, onRemove }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {items.map((d) => (
+        <span key={d.id} style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          {d.name}
+          <button className="ghost" style={{ padding: "0 8px", border: 0, fontSize: 18, color: "var(--bad)" }} onClick={() => onRemove(d)} aria-label={`Delete ${d.name}`}>×</button>
+        </span>
+      ))}
+      {!items.length && <span className="muted">None yet</span>}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [pw, setPw] = useState("");
   const [authed, setAuthed] = useState(false);
   const [depts, setDepts] = useState([]);
+  const [zones, setZones] = useState([]);
   const [codes, setCodes] = useState([]);
   const [newDept, setNewDept] = useState("");
+  const [newZone, setNewZone] = useState("");
   const [label, setLabel] = useState("");
   const [qty, setQty] = useState(1);
+  const [deptId, setDeptId] = useState("");
+  const [filter, setFilter] = useState("");
+  const [out, setOut] = useState(null);
+  const [err, setErr] = useState("");
   const [selected, setSelected] = useState([]);
   const [pName, setPName] = useState("");
   const [pDept, setPDept] = useState("");
@@ -40,10 +70,6 @@ export default function Admin() {
   const [pPhoto, setPPhoto] = useState("");
   const [perr, setPerr] = useState("");
   const [fileKey, setFileKey] = useState(0);
-  const [deptId, setDeptId] = useState("");
-  const [filter, setFilter] = useState("");
-  const [out, setOut] = useState(null);
-  const [err, setErr] = useState("");
 
   const headers = { "Content-Type": "application/json", "x-admin-password": pw };
 
@@ -55,16 +81,35 @@ export default function Admin() {
       return setErr(d.status === 401 ? "Wrong password" : "Server error. Check DATABASE_URL.");
     }
     setDepts(await d.json());
+    const z = await fetch("/api/zones", { headers });
+    setZones(z.ok ? await z.json() : []);
     setAuthed(true);
     const c = await fetch("/api/codes" + (f ? `?department=${f}` : ""), { headers });
     setCodes(c.ok ? await c.json() : []);
     setSelected([]);
   }
 
-  async function addDept() {
-    if (!newDept.trim()) return;
-    await fetch("/api/departments", { method: "POST", headers, body: JSON.stringify({ name: newDept }) });
-    setNewDept("");
+  async function add(url, name, reset) {
+    if (!name.trim()) return;
+    await fetch(url, { method: "POST", headers, body: JSON.stringify({ name }) });
+    reset("");
+    load();
+  }
+
+  async function removeDept(d) {
+    if (!confirm(`Delete the department “${d.name}”? Its codes will be kept but left without a department.`)) return;
+    await fetch("/api/departments", { method: "DELETE", headers, body: JSON.stringify({ id: d.id }) });
+    const f = filter === String(d.id) ? "" : filter;
+    setFilter(f);
+    if (deptId === String(d.id)) setDeptId("");
+    if (pDept === String(d.id)) setPDept("");
+    load(f);
+  }
+
+  async function removeZone(z) {
+    if (!confirm(`Remove the zone “${z.name}” from the list? People already registered keep their zone.`)) return;
+    await fetch("/api/zones", { method: "DELETE", headers, body: JSON.stringify({ id: z.id }) });
+    if (pZone === z.name) setPZone("");
     load();
   }
 
@@ -105,19 +150,9 @@ export default function Admin() {
     });
     const d = await r.json();
     if (!r.ok) return setPerr(d.error || "Failed");
-    setOut(await Promise.all(d.codes.map(async (c) => ({ ...c, card: await drawCard(c) }))));
+    setOut(d.codes.map((c) => ({ ...c, card: c.qr }))); // plain QR: no name or secret on the image
     setPName(""); setPZone(""); setPPhoto(""); setFileKey((k) => k + 1);
     load();
-  }
-
-  async function removeDept(d) {
-    if (!confirm(`Delete the department “${d.name}”? Its codes will be kept but left without a department.`)) return;
-    await fetch("/api/departments", { method: "DELETE", headers, body: JSON.stringify({ id: d.id }) });
-    const f = filter === String(d.id) ? "" : filter;
-    setFilter(f);
-    if (deptId === String(d.id)) setDeptId("");
-    if (pDept === String(d.id)) setPDept("");
-    load(f);
   }
 
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -126,8 +161,7 @@ export default function Admin() {
   async function removeSelected() {
     if (!confirm(`Delete ${selected.length} QR code(s)? This can’t be undone.`)) return;
     const r = await fetch("/api/codes", { method: "DELETE", headers, body: JSON.stringify({ ids: selected }) });
-    if (!r.ok) return setErr("Couldn’t delete the selected codes.");
-    setSelected([]);
+    if (!r.ok) return alert("Couldn’t delete the selected codes.");
     load();
   }
 
@@ -137,7 +171,7 @@ export default function Admin() {
     return (
       <div className="card" style={{ maxWidth: 380, margin: "40px auto" }}>
         <h1>Log in</h1>
-        <p className="muted">Enter the admin password to manage departments and QR codes.</p>
+        <p className="muted">Enter the admin password to manage departments, zones and QR codes.</p>
         <form onSubmit={(e) => { e.preventDefault(); load(); }}>
           <input type="password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
           <button className="block" type="submit">Log in</button>
@@ -153,40 +187,40 @@ export default function Admin() {
         <button className="ghost" onClick={logout}>Log out</button>
       </div>
 
-      <div className="card">
-        <h3>Departments</h3>
+      <Section title="Departments">
         <div className="row" style={{ alignItems: "flex-start" }}>
           <input placeholder="New department name" value={newDept} onChange={(e) => setNewDept(e.target.value)} />
-          <button onClick={addDept}>Add</button>
+          <button onClick={() => add("/api/departments", newDept, setNewDept)}>Add</button>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {depts.map((d) => (
-            <span key={d.id} style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 4 }}>
-              {d.name}
-              <button className="ghost" style={{ padding: "0 8px", border: 0, fontSize: 18, color: "var(--bad)" }} onClick={() => removeDept(d)} aria-label={`Delete ${d.name}`}>×</button>
-            </span>
-          ))}
-          {!depts.length && <span className="muted">No departments yet</span>}
-        </div>
-      </div>
+        <Chips items={depts} onRemove={removeDept} />
+      </Section>
 
-      <div className="card">
-        <h3>Register a person</h3>
+      <Section title="Zones">
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <input placeholder="New zone name" value={newZone} onChange={(e) => setNewZone(e.target.value)} />
+          <button onClick={() => add("/api/zones", newZone, setNewZone)}>Add</button>
+        </div>
+        <Chips items={zones} onRemove={removeZone} />
+      </Section>
+
+      <Section title="Register a person" open>
         <input placeholder="Full name" value={pName} onChange={(e) => setPName(e.target.value)} />
         <select value={pDept} onChange={(e) => setPDept(e.target.value)}>
           <option value="">No department</option>
           {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        <input placeholder="Zone" value={pZone} onChange={(e) => setPZone(e.target.value)} />
+        <select value={pZone} onChange={(e) => setPZone(e.target.value)}>
+          <option value="">No zone</option>
+          {zones.map((z) => <option key={z.id} value={z.name}>{z.name}</option>)}
+        </select>
         <p className="muted" style={{ margin: "0 0 6px" }}>Photo</p>
         <input key={fileKey} type="file" accept="image/*" onChange={(e) => readPhoto(e.target.files[0])} />
         {pPhoto && <img src={pPhoto} alt="Preview" width="96" style={{ borderRadius: 12, display: "block", marginBottom: 12 }} />}
         <button className="block" onClick={registerPerson}>Register &amp; generate QR</button>
         {perr && <p className="t-bad" style={{ marginTop: 12 }}>{perr}</p>}
-      </div>
+      </Section>
 
-      <div className="card">
-        <h3>New QR code</h3>
+      <Section title="Bulk QR codes">
         <input placeholder="Label or prefix (e.g. Ticket)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <select value={deptId} onChange={(e) => setDeptId(e.target.value)}>
           <option value="">No department</option>
@@ -196,18 +230,21 @@ export default function Admin() {
         <input type="number" min="1" max="100" value={qty} onChange={(e) => setQty(e.target.value)} />
         <button className="block" onClick={generate}>Generate</button>
         {err && <p className="t-bad" style={{ marginTop: 12 }}>{err}</p>}
-      </div>
+      </Section>
 
       {out && (
         <div className="card printable">
           <div className="row no-print">
             <h3>{out.length} QR code{out.length > 1 ? "s" : ""}</h3>
-            <button className="ghost" onClick={() => window.print()}>Print</button>
+            <span>
+              <button className="ghost" onClick={() => window.print()}>Print</button>{" "}
+              <button className="ghost" onClick={() => setOut(null)}>Close</button>
+            </span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 16 }}>
             {out.map((c) => (
               <div key={c.id} style={{ textAlign: "center" }}>
-                <img src={c.card} alt={c.label} />
+                <img src={c.card} alt="QR code" />
                 <a className="no-print" href={c.card} download={`${c.label}.png`}>Download</a>
               </div>
             ))}
@@ -215,31 +252,37 @@ export default function Admin() {
         </div>
       )}
 
-      <div className="card">
-        <div className="row">
-          <h3>Codes{selected.length > 0 ? ` (${selected.length} selected)` : ""}</h3>
-          <select style={{ width: "auto", margin: 0 }} value={filter} onChange={(e) => { setFilter(e.target.value); load(e.target.value); }}>
-            <option value="">All departments</option>
-            {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
+      <Section title={`Codes${selected.length ? ` (${selected.length} selected)` : ""}`} open>
+        <select value={filter} onChange={(e) => { setFilter(e.target.value); load(e.target.value); }}>
+          <option value="">All departments</option>
+          {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
         {selected.length > 0 && (
-          <button className="ghost" style={{ marginTop: 12, color: "var(--bad)", borderColor: "var(--bad)" }} onClick={removeSelected}>
+          <button className="ghost" style={{ marginBottom: 12, color: "var(--bad)", borderColor: "var(--bad)" }} onClick={removeSelected}>
             Delete selected ({selected.length})
           </button>
         )}
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
+        <div style={{ overflowX: "auto" }}>
           <table>
-            <thead><tr><th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th><th>Label</th><th>Department</th><th>Zone</th><th>Scans</th><th>Secret</th></tr></thead>
+            <thead>
+              <tr>
+                <th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th>
+                <th>Label</th><th>Department</th><th>Zone</th><th>Scans</th><th>Secret</th>
+              </tr>
+            </thead>
             <tbody>
               {codes.map((c) => (
-                <tr key={c.id}><td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.zone || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
+                <tr key={c.id}>
+                  <td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td>
+                  <td>{c.label}</td><td>{c.department || "—"}</td><td>{c.zone || "—"}</td><td>{c.scan_count}</td>
+                  <td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td>
+                </tr>
               ))}
               {!codes.length && <tr><td colSpan="6" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </Section>
     </>
   );
 }

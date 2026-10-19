@@ -21,11 +21,6 @@ export default async function Verify({ searchParams }) {
           <p><b>{row.label}</b></p>
           <p className="muted">Department: {row.department || "—"}</p>
           {row.zone && <p className="muted">Zone: {row.zone}</p>}
-          <p className="muted">
-            {row.scan_count > 0
-              ? `Scanned ${row.scan_count} time(s). First: ${new Date(row.first_scanned_at).toLocaleString()}`
-              : "Not scanned yet"}
-          </p>
         </>
       ) : (
         <h1>Invalid code</h1>
