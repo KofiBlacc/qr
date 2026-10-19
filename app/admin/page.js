@@ -3,6 +3,28 @@ import { useState } from "react";
 
 const fmt = (s) => (s || "").replace(/(.{4})(.{4})/, "$1-$2");
 
+// Draws the secret code and label onto the QR image itself, so the downloaded/printed PNG carries them.
+function drawCard(c) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height + 64;
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const g = cv.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);
+      g.drawImage(img, 0, 0);
+      g.textAlign = "center";
+      g.fillStyle = "#000"; g.font = "bold 28px monospace";
+      g.fillText(fmt(c.secret), w / 2, img.height + 8, w - 20);
+      g.fillStyle = "#555"; g.font = "16px sans-serif";
+      g.fillText(c.label, w / 2, img.height + 40, w - 20);
+      resolve(cv.toDataURL("image/png"));
+    };
+    img.src = c.qr;
+  });
+}
+
 export default function Admin() {
   const [pw, setPw] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -43,7 +65,7 @@ export default function Admin() {
     const r = await fetch("/api/codes", { method: "POST", headers, body: JSON.stringify({ label, departmentId: deptId, quantity: qty }) });
     const d = await r.json();
     if (!r.ok) return setErr(d.error || "Failed");
-    setOut(d.codes);
+    setOut(await Promise.all(d.codes.map(async (c) => ({ ...c, card: await drawCard(c) }))));
     setLabel("");
     load();
   }
@@ -101,10 +123,8 @@ export default function Admin() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 16 }}>
             {out.map((c) => (
               <div key={c.id} style={{ textAlign: "center" }}>
-                <img src={c.qr} alt={c.label} />
-                <p className="muted" style={{ margin: "4px 0 0" }}>{c.label}</p>
-                <p style={{ fontFamily: "monospace", fontWeight: 700, margin: "0 0 4px" }}>{fmt(c.secret)}</p>
-                <a className="no-print" href={c.qr} download={`${c.label}.png`}>Download</a>
+                <img src={c.card} alt={c.label} />
+                <a className="no-print" href={c.card} download={`${c.label}.png`}>Download</a>
               </div>
             ))}
           </div>
