@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { getDb, isAdmin, makeSecret } from "../../../lib/db";
+import { getDb, isAdmin, isUuid, makeSecret } from "../../../lib/db";
 
 export async function GET(req) {
   if (!isAdmin(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,4 +37,14 @@ export async function POST(req) {
   );
   codes.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   return Response.json({ codes });
+}
+
+export async function DELETE(req) {
+  if (!isAdmin(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { ids } = await req.json();
+  const list = (Array.isArray(ids) ? ids : []).filter(isUuid).slice(0, 500);
+  if (!list.length) return Response.json({ error: "Nothing selected" }, { status: 400 });
+  const sql = await getDb();
+  const rows = await sql`DELETE FROM codes WHERE id = ANY(${list}::uuid[]) RETURNING id`;
+  return Response.json({ deleted: rows.length });
 }

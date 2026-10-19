@@ -33,6 +33,7 @@ export default function Admin() {
   const [newDept, setNewDept] = useState("");
   const [label, setLabel] = useState("");
   const [qty, setQty] = useState(1);
+  const [selected, setSelected] = useState([]);
   const [deptId, setDeptId] = useState("");
   const [filter, setFilter] = useState("");
   const [out, setOut] = useState(null);
@@ -51,6 +52,7 @@ export default function Admin() {
     setAuthed(true);
     const c = await fetch("/api/codes" + (f ? `?department=${f}` : ""), { headers });
     setCodes(c.ok ? await c.json() : []);
+    setSelected([]);
   }
 
   async function addDept() {
@@ -67,6 +69,17 @@ export default function Admin() {
     if (!r.ok) return setErr(d.error || "Failed");
     setOut(await Promise.all(d.codes.map(async (c) => ({ ...c, card: await drawCard(c) }))));
     setLabel("");
+    load();
+  }
+
+  const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const toggleAll = () => setSelected(selected.length === codes.length ? [] : codes.map((c) => c.id));
+
+  async function removeSelected() {
+    if (!confirm(`Delete ${selected.length} QR code(s)? This can’t be undone.`)) return;
+    const r = await fetch("/api/codes", { method: "DELETE", headers, body: JSON.stringify({ ids: selected }) });
+    if (!r.ok) return setErr("Couldn’t delete the selected codes.");
+    setSelected([]);
     load();
   }
 
@@ -133,20 +146,25 @@ export default function Admin() {
 
       <div className="card">
         <div className="row">
-          <h3>Codes</h3>
+          <h3>Codes{selected.length > 0 ? ` (${selected.length} selected)` : ""}</h3>
           <select style={{ width: "auto", margin: 0 }} value={filter} onChange={(e) => { setFilter(e.target.value); load(e.target.value); }}>
             <option value="">All departments</option>
             {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
+        {selected.length > 0 && (
+          <button className="ghost" style={{ marginTop: 12, color: "var(--bad)", borderColor: "var(--bad)" }} onClick={removeSelected}>
+            Delete selected ({selected.length})
+          </button>
+        )}
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table>
-            <thead><tr><th>Label</th><th>Department</th><th>Scans</th><th>Secret</th></tr></thead>
+            <thead><tr><th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th><th>Label</th><th>Department</th><th>Scans</th><th>Secret</th></tr></thead>
             <tbody>
               {codes.map((c) => (
-                <tr key={c.id}><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
+                <tr key={c.id}><td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
               ))}
-              {!codes.length && <tr><td colSpan="4" className="muted">No codes yet</td></tr>}
+              {!codes.length && <tr><td colSpan="5" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>
