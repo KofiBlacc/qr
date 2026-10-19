@@ -3,6 +3,28 @@ import { useState } from "react";
 
 const fmt = (s) => (s || "").replace(/(.{4})(.{4})/, "$1-$2");
 
+// Face detector (MediaPipe), loaded in the browser the first time a photo is chosen.
+let detectorPromise;
+function getDetector() {
+  if (!detectorPromise) {
+    detectorPromise = (async () => {
+      const base = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+      const url = base + "/vision_bundle.mjs";
+      const { FilesetResolver, FaceDetector } = await import(/* webpackIgnore: true */ url);
+      const fileset = await FilesetResolver.forVisionTasks(base + "/wasm");
+      return FaceDetector.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+        },
+        runningMode: "IMAGE",
+        minDetectionConfidence: 0.5,
+      });
+    })().catch((e) => { detectorPromise = null; throw e; });
+  }
+  return detectorPromise;
+}
+
 // Draws the secret code and label onto the QR image itself, so the downloaded/printed PNG carries them.
 function drawCard(c) {
   return new Promise((resolve) => {
@@ -70,6 +92,7 @@ export default function Admin() {
   const [pPhoto, setPPhoto] = useState("");
   const [perr, setPerr] = useState("");
   const [fileKey, setFileKey] = useState(0);
+  const [pNote, setPNote] = useState("");
   const [cName, setCName] = useState("");
   const [cNumber, setCNumber] = useState("");
   const [cColor, setCColor] = useState("");
@@ -128,22 +151,40 @@ export default function Admin() {
     load();
   }
 
-  function readPhoto(file) {
+  // Crops the photo to a square with the face in the middle, then shrinks it.
+  async function readPhoto(file) {
+    setPNote("");
     if (!file) return setPPhoto("");
-    const fr = new FileReader();
-    fr.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, 240 / Math.max(img.width, img.height));
-        const cv = document.createElement("canvas");
-        cv.width = Math.round(img.width * scale);
-        cv.height = Math.round(img.height * scale);
-        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-        setPPhoto(cv.toDataURL("image/jpeg", 0.8));
-      };
-      img.src = fr.result;
-    };
-    fr.readAsDataURL(file);
+    setPNote("Adjusting photo…");
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = URL.createObjectURL(file);
+    }).catch(() => null);
+    if (!img) { setPPhoto(""); return setPNote("Couldn’t read that image."); }
+    const W = img.naturalWidth, H = img.naturalHeight;
+    let cx = W / 2, cy = H / 2, size = Math.min(W, H), found = false;
+    try {
+      const det = await getDetector();
+      const faces = det.detect(img).detections;
+      if (faces.length) {
+        const b = faces.map((f) => f.boundingBox).sort((a, c) => c.width * c.height - a.width * a.height)[0];
+        cx = b.originX + b.width / 2;
+        cy = b.originY + b.height / 2;
+        const face = Math.max(b.width, b.height);
+        const fit = 2 * Math.min(cx, W - cx, cy, H - cy);
+        size = Math.min(Math.max(Math.min(face * 2.2, fit), face * 1.3), Math.min(W, H));
+        found = true;
+      }
+    } catch {}
+    const sx = Math.min(Math.max(cx - size / 2, 0), W - size);
+    const sy = Math.min(Math.max(cy - size / 2, 0), H - size);
+    const cv = document.createElement("canvas");
+    cv.width = 256; cv.height = 256;
+    cv.getContext("2d").drawImage(img, sx, sy, size, size, 0, 0, 256, 256);
+    setPPhoto(cv.toDataURL("image/jpeg", 0.85));
+    setPNote(found ? "Face found and centered ✓" : "No face detected, so the photo was centered and cropped to a square.");
   }
 
   async function registerPerson() {
@@ -156,7 +197,7 @@ export default function Admin() {
     const d = await r.json();
     if (!r.ok) return setPerr(d.error || "Failed");
     setOut(d.codes.map((c) => ({ ...c, card: c.qr }))); // plain QR: no name or secret on the image
-    setPName(""); setPZone(""); setPPhoto(""); setFileKey((k) => k + 1);
+    setPName(""); setPZone(""); setPPhoto(""); setPNote(""); setFileKey((k) => k + 1);
     load();
   }
 
@@ -251,7 +292,8 @@ export default function Admin() {
         </select>
         <p className="muted" style={{ margin: "0 0 6px" }}>Photo</p>
         <input key={fileKey} type="file" accept="image/*" onChange={(e) => readPhoto(e.target.files[0])} />
-        {pPhoto && <img src={pPhoto} alt="Preview" width="96" style={{ borderRadius: 12, display: "block", marginBottom: 12 }} />}
+        {pPhoto && <img src={pPhoto} alt="Preview" width="120" height="120" style={{ borderRadius: "50%", objectFit: "cover", display: "block", margin: "0 0 8px" }} />}
+        {pNote && <p className="muted" style={{ margin: "0 0 12px" }}>{pNote}</p>}
         <button className="block" onClick={registerPerson}>Register &amp; generate QR</button>
         {perr && <p className="t-bad" style={{ marginTop: 12 }}>{perr}</p>}
       </Section>
