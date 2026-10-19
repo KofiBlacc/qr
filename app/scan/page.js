@@ -6,6 +6,7 @@ export default function Scan() {
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
   const [running, setRunning] = useState(false);
+  const [manual, setManual] = useState("");
 
   async function start() {
     setResult(null); setErr("");
@@ -31,6 +32,22 @@ export default function Scan() {
     }
   }
 
+  async function verifyManual(e) {
+    e.preventDefault();
+    if (!manual.trim()) return;
+    if (scanner.current?.isScanning) {
+      await scanner.current.stop().catch(() => {});
+      setRunning(false);
+    }
+    setErr("");
+    const r = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: manual }),
+    });
+    setResult(await r.json());
+  }
+
   useEffect(() => {
     start();
     return () => {
@@ -48,6 +65,19 @@ export default function Scan() {
         {running && <p className="muted">Point the camera at the QR code.</p>}
         {!running && (err || result) && <button className="block" onClick={start}>{result ? "Scan another" : "Try again"}</button>}
         {err && <p className="t-bad">{err}</p>}
+      </div>
+      <div className="card">
+        <h3>QR code damaged or not scanning?</h3>
+        <form onSubmit={verifyManual}>
+          <input
+            placeholder="Type the secret code (e.g. ABCD-EFGH)"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <button className="block" type="submit">Verify code</button>
+        </form>
       </div>
       {result && (
         <div className="card status">

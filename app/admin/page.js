@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 
+const fmt = (s) => (s || "").replace(/(.{4})(.{4})/, "$1-$2");
+
 export default function Admin() {
   const [pw, setPw] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -100,7 +102,8 @@ export default function Admin() {
             {out.map((c) => (
               <div key={c.id} style={{ textAlign: "center" }}>
                 <img src={c.qr} alt={c.label} />
-                <p className="muted" style={{ margin: "4px 0" }}>{c.label}</p>
+                <p className="muted" style={{ margin: "4px 0 0" }}>{c.label}</p>
+                <p style={{ fontFamily: "monospace", fontWeight: 700, margin: "0 0 4px" }}>{fmt(c.secret)}</p>
                 <a className="no-print" href={c.qr} download={`${c.label}.png`}>Download</a>
               </div>
             ))}
@@ -118,12 +121,12 @@ export default function Admin() {
         </div>
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table>
-            <thead><tr><th>Label</th><th>Department</th><th>Scans</th></tr></thead>
+            <thead><tr><th>Label</th><th>Department</th><th>Scans</th><th>Secret</th></tr></thead>
             <tbody>
               {codes.map((c) => (
-                <tr key={c.id}><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td></tr>
+                <tr key={c.id}><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
               ))}
-              {!codes.length && <tr><td colSpan="3" className="muted">No codes yet</td></tr>}
+              {!codes.length && <tr><td colSpan="4" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>
