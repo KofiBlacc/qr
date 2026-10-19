@@ -31,8 +31,11 @@ export default function Scan() {
     }
   }
 
-  useEffect(() => () => {
-    if (scanner.current?.isScanning) scanner.current.stop().catch(() => {});
+  useEffect(() => {
+    start();
+    return () => {
+      if (scanner.current?.isScanning) scanner.current.stop().catch(() => {});
+    };
   }, []);
 
   const tone = !result ? "" : !result.valid ? "bad" : result.alreadyScanned ? "warn" : "ok";
@@ -42,8 +45,8 @@ export default function Scan() {
       <h1>Scan a QR code</h1>
       <div className="card">
         <div id="reader" />
-        {!running && !result && <p className="muted">Tap the button, then point the camera at the code.</p>}
-        {!running && <button className="block" onClick={start}>{result ? "Scan another" : "Start camera"}</button>}
+        {running && <p className="muted">Point the camera at the QR code.</p>}
+        {!running && (err || result) && <button className="block" onClick={start}>{result ? "Scan another" : "Try again"}</button>}
         {err && <p className="t-bad">{err}</p>}
       </div>
       {result && (

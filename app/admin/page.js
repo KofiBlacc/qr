@@ -8,6 +8,7 @@ export default function Admin() {
   const [codes, setCodes] = useState([]);
   const [newDept, setNewDept] = useState("");
   const [label, setLabel] = useState("");
+  const [qty, setQty] = useState(1);
   const [deptId, setDeptId] = useState("");
   const [filter, setFilter] = useState("");
   const [out, setOut] = useState(null);
@@ -37,10 +38,10 @@ export default function Admin() {
 
   async function generate() {
     setErr(""); setOut(null);
-    const r = await fetch("/api/codes", { method: "POST", headers, body: JSON.stringify({ label, departmentId: deptId }) });
+    const r = await fetch("/api/codes", { method: "POST", headers, body: JSON.stringify({ label, departmentId: deptId, quantity: qty }) });
     const d = await r.json();
     if (!r.ok) return setErr(d.error || "Failed");
-    setOut(d);
+    setOut(d.codes);
     setLabel("");
     load();
   }
@@ -78,20 +79,34 @@ export default function Admin() {
 
       <div className="card">
         <h3>New QR code</h3>
-        <input placeholder="Label (name, ticket, certificate no.)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <input placeholder="Label or prefix (e.g. Ticket)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <select value={deptId} onChange={(e) => setDeptId(e.target.value)}>
           <option value="">No department</option>
           {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
+        <p className="muted" style={{ margin: "0 0 6px" }}>How many QR codes? (1 to 100)</p>
+        <input type="number" min="1" max="100" value={qty} onChange={(e) => setQty(e.target.value)} />
         <button className="block" onClick={generate}>Generate</button>
         {err && <p className="t-bad" style={{ marginTop: 12 }}>{err}</p>}
-        {out && (
-          <div style={{ textAlign: "center", marginTop: 16 }}>
-            <img src={out.qr} alt="QR code" width="240" />
-            <a className="btn block" style={{ marginTop: 12 }} href={out.qr} download="qr-code.png">Download PNG</a>
-          </div>
-        )}
       </div>
+
+      {out && (
+        <div className="card printable">
+          <div className="row no-print">
+            <h3>{out.length} QR code{out.length > 1 ? "s" : ""}</h3>
+            <button className="ghost" onClick={() => window.print()}>Print</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 16 }}>
+            {out.map((c) => (
+              <div key={c.id} style={{ textAlign: "center" }}>
+                <img src={c.qr} alt={c.label} />
+                <p className="muted" style={{ margin: "4px 0" }}>{c.label}</p>
+                <a className="no-print" href={c.qr} download={`${c.label}.png`}>Download</a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="row">
