@@ -89,6 +89,8 @@ export default function Scan() {
               <p><b>{result.label}</b></p>
               <p className="muted">Department: {result.department || "—"}</p>
               {result.zone && <p className="muted">Zone: {result.zone}</p>}
+              {result.carNumber && <p className="muted">Car number: <b>{result.carNumber}</b></p>}
+              {result.color && <p className="muted">Color: {result.color}</p>}
             </>
           ) : (
             <h1>Invalid code</h1>

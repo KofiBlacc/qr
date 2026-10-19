@@ -70,6 +70,11 @@ export default function Admin() {
   const [pPhoto, setPPhoto] = useState("");
   const [perr, setPerr] = useState("");
   const [fileKey, setFileKey] = useState(0);
+  const [cName, setCName] = useState("");
+  const [cNumber, setCNumber] = useState("");
+  const [cColor, setCColor] = useState("");
+  const [cDept, setCDept] = useState("");
+  const [cerr, setCerr] = useState("");
 
   const headers = { "Content-Type": "application/json", "x-admin-password": pw };
 
@@ -146,13 +151,44 @@ export default function Admin() {
     if (!pName.trim()) return setPerr("Enter the person’s name");
     const r = await fetch("/api/codes", {
       method: "POST", headers,
-      body: JSON.stringify({ label: pName, departmentId: pDept, zone: pZone, photo: pPhoto, quantity: 1 }),
+      body: JSON.stringify({ label: pName, departmentId: pDept, zone: pZone, photo: pPhoto, kind: "person", quantity: 1 }),
     });
     const d = await r.json();
     if (!r.ok) return setPerr(d.error || "Failed");
     setOut(d.codes.map((c) => ({ ...c, card: c.qr }))); // plain QR: no name or secret on the image
     setPName(""); setPZone(""); setPPhoto(""); setFileKey((k) => k + 1);
     load();
+  }
+
+  async function registerCar() {
+    setCerr(""); setOut(null);
+    if (!cName.trim() || !cNumber.trim()) return setCerr("Enter the name and the car number");
+    const r = await fetch("/api/codes", {
+      method: "POST", headers,
+      body: JSON.stringify({ label: cName, carNumber: cNumber, color: cColor, departmentId: cDept, kind: "car", quantity: 1 }),
+    });
+    const d = await r.json();
+    if (!r.ok) return setCerr(d.error || "Failed");
+    setOut(d.codes.map((c) => ({ ...c, card: c.qr })));
+    setCName(""); setCNumber(""); setCColor("");
+    load();
+  }
+
+  // Bring back the QR images of codes that were already produced.
+  async function viewQr(ids) {
+    const r = await fetch("/api/codes/qr", { method: "POST", headers, body: JSON.stringify({ ids }) });
+    if (!r.ok) return alert("Couldn’t load the QR codes.");
+    const { qrs } = await r.json();
+    const byId = Object.fromEntries(codes.map((c) => [c.id, c]));
+    const items = await Promise.all(
+      qrs.map(async ({ id, qr }) => {
+        const c = { ...byId[id], qr };
+        const plain = c.kind === "person" || c.kind === "car" || c.zone || c.has_photo;
+        return { ...c, card: plain ? qr : await drawCard(c) };
+      })
+    );
+    setOut(items);
+    setTimeout(() => document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }), 100);
   }
 
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -220,6 +256,18 @@ export default function Admin() {
         {perr && <p className="t-bad" style={{ marginTop: 12 }}>{perr}</p>}
       </Section>
 
+      <Section title="Register a car">
+        <input placeholder="Name (owner or car name)" value={cName} onChange={(e) => setCName(e.target.value)} />
+        <input placeholder="Car number" value={cNumber} onChange={(e) => setCNumber(e.target.value)} autoCapitalize="characters" />
+        <input placeholder="Color" value={cColor} onChange={(e) => setCColor(e.target.value)} />
+        <select value={cDept} onChange={(e) => setCDept(e.target.value)}>
+          <option value="">No department</option>
+          {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <button className="block" onClick={registerCar}>Register &amp; generate QR</button>
+        {cerr && <p className="t-bad" style={{ marginTop: 12 }}>{cerr}</p>}
+      </Section>
+
       <Section title="Bulk QR codes">
         <input placeholder="Label or prefix (e.g. Ticket)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <select value={deptId} onChange={(e) => setDeptId(e.target.value)}>
@@ -233,7 +281,7 @@ export default function Admin() {
       </Section>
 
       {out && (
-        <div className="card printable">
+        <div id="results" className="card printable">
           <div className="row no-print">
             <h3>{out.length} QR code{out.length > 1 ? "s" : ""}</h3>
             <span>
@@ -258,27 +306,32 @@ export default function Admin() {
           {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         {selected.length > 0 && (
-          <button className="ghost" style={{ marginBottom: 12, color: "var(--bad)", borderColor: "var(--bad)" }} onClick={removeSelected}>
-            Delete selected ({selected.length})
-          </button>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button onClick={() => viewQr(selected)}>Get QR codes ({selected.length})</button>
+            <button className="ghost" style={{ color: "var(--bad)", borderColor: "var(--bad)" }} onClick={removeSelected}>
+              Delete ({selected.length})
+            </button>
+          </div>
         )}
         <div style={{ overflowX: "auto" }}>
           <table>
             <thead>
               <tr>
                 <th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th>
-                <th>Label</th><th>Department</th><th>Zone</th><th>Scans</th><th>Secret</th>
+                <th>Label</th><th>Department</th><th>Zone</th><th>Car</th><th>Scans</th><th>Secret</th><th></th>
               </tr>
             </thead>
             <tbody>
               {codes.map((c) => (
                 <tr key={c.id}>
                   <td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td>
-                  <td>{c.label}</td><td>{c.department || "—"}</td><td>{c.zone || "—"}</td><td>{c.scan_count}</td>
+                  <td>{c.label}</td><td>{c.department || "—"}</td><td>{c.zone || "—"}</td>
+                  <td>{c.car_number ? c.car_number + (c.color ? " · " + c.color : "") : "—"}</td><td>{c.scan_count}</td>
                   <td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td>
+                  <td><button className="ghost" style={{ padding: "4px 10px", fontSize: 13 }} onClick={() => viewQr([c.id])}>QR</button></td>
                 </tr>
               ))}
-              {!codes.length && <tr><td colSpan="6" className="muted">No codes yet</td></tr>}
+              {!codes.length && <tr><td colSpan="8" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>

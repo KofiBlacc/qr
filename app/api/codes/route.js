@@ -6,10 +6,10 @@ export async function GET(req) {
   const dept = Number(new URL(req.url).searchParams.get("department")) || null;
   const sql = await getDb();
   const rows = dept
-    ? await sql`SELECT c.id, c.label, c.secret, c.zone, c.created_at, c.scan_count, c.first_scanned_at, d.name AS department
+    ? await sql`SELECT c.id, c.label, c.secret, c.zone, c.kind, c.car_number, c.color, (c.photo IS NOT NULL) AS has_photo, c.created_at, c.scan_count, c.first_scanned_at, d.name AS department
         FROM codes c LEFT JOIN departments d ON d.id = c.department_id
         WHERE c.department_id = ${dept} ORDER BY c.created_at DESC, c.label LIMIT 500`
-    : await sql`SELECT c.id, c.label, c.secret, c.zone, c.created_at, c.scan_count, c.first_scanned_at, d.name AS department
+    : await sql`SELECT c.id, c.label, c.secret, c.zone, c.kind, c.car_number, c.color, (c.photo IS NOT NULL) AS has_photo, c.created_at, c.scan_count, c.first_scanned_at, d.name AS department
         FROM codes c LEFT JOIN departments d ON d.id = c.department_id
         ORDER BY c.created_at DESC, c.label LIMIT 500`;
   return Response.json(rows);
@@ -31,9 +31,14 @@ export async function POST(req) {
     typeof body.photo === "string" && body.photo.startsWith("data:image/") && body.photo.length < 400000
       ? body.photo
       : null;
-  const rows = zone || photo
-    ? await sql`INSERT INTO codes (label, department_id, secret, zone, photo)
-        VALUES (${labels[0]}, ${dept}, ${secrets[0]}, ${zone}, ${photo}) RETURNING id, label, secret`
+  const carNumber = String(body.carNumber || "").trim().slice(0, 30) || null;
+  const color = String(body.color || "").trim().slice(0, 40) || null;
+  const kind = body.kind === "car" ? "car" : body.kind === "person" ? "person" : null;
+  if (kind === "car" && !carNumber) return Response.json({ error: "Car number required" }, { status: 400 });
+  const rows = kind || zone || photo
+    ? await sql`INSERT INTO codes (label, department_id, secret, zone, photo, kind, car_number, color)
+        VALUES (${labels[0]}, ${dept}, ${secrets[0]}, ${zone}, ${photo}, ${kind}, ${carNumber}, ${color})
+        RETURNING id, label, secret`
     : await sql`INSERT INTO codes (label, department_id, secret)
         SELECT t.l, ${dept}::int, t.s FROM unnest(${labels}::text[], ${secrets}::text[]) AS t(l, s)
         RETURNING id, label, secret`;

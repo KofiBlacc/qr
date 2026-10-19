@@ -8,7 +8,7 @@ export default async function Verify({ searchParams }) {
   let row = null;
   if (isUuid(code)) {
     const sql = await getDb();
-    [row] = await sql`SELECT c.label, c.zone, c.photo, c.scan_count, c.first_scanned_at, d.name AS department
+    [row] = await sql`SELECT c.label, c.zone, c.photo, c.car_number, c.color, c.scan_count, c.first_scanned_at, d.name AS department
       FROM codes c LEFT JOIN departments d ON d.id = c.department_id WHERE c.id = ${code}`;
   }
   return (
@@ -21,6 +21,8 @@ export default async function Verify({ searchParams }) {
           <p><b>{row.label}</b></p>
           <p className="muted">Department: {row.department || "—"}</p>
           {row.zone && <p className="muted">Zone: {row.zone}</p>}
+          {row.car_number && <p className="muted">Car number: <b>{row.car_number}</b></p>}
+          {row.color && <p className="muted">Color: {row.color}</p>}
         </>
       ) : (
         <h1>Invalid code</h1>
