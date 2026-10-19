@@ -1,9 +1,9 @@
 export default function Home() {
   return (
-    <>
-      <h1>QR Verify</h1>
-      <a className="btn" href="/scan">Scan a QR code</a>
-      <a className="btn" href="/admin">Admin: departments &amp; codes</a>
-    </>
+    <section className="hero">
+      <h1>Verify a QR code in seconds</h1>
+      <p>Point your phone’s camera at a code to check that it’s genuine.</p>
+      <a className="btn big" href="/scan">Scan a QR code</a>
+    </section>
   );
 }

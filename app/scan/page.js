@@ -27,7 +27,7 @@ export default function Scan() {
       });
       setRunning(true);
     } catch {
-      setErr("Could not open the camera. Please allow camera access.");
+      setErr("Couldn’t open the camera. Please allow camera access and try again.");
     }
   }
 
@@ -35,33 +35,36 @@ export default function Scan() {
     if (scanner.current?.isScanning) scanner.current.stop().catch(() => {});
   }, []);
 
+  const tone = !result ? "" : !result.valid ? "bad" : result.alreadyScanned ? "warn" : "ok";
+
   return (
     <>
-      <h1>Scan QR code</h1>
-      <div id="reader" />
-      {!running && <button onClick={start}>{result ? "Scan another" : "Start camera"}</button>}
-      {err && <p className="bad">{err}</p>}
+      <h1>Scan a QR code</h1>
+      <div className="card">
+        <div id="reader" />
+        {!running && !result && <p className="muted">Tap the button, then point the camera at the code.</p>}
+        {!running && <button className="block" onClick={start}>{result ? "Scan another" : "Start camera"}</button>}
+        {err && <p className="t-bad">{err}</p>}
+      </div>
       {result && (
-        <div className="card">
+        <div className="card status">
+          <div className={`icon ${tone}`}>{result.valid ? (result.alreadyScanned ? "!" : "✓") : "✕"}</div>
           {result.valid ? (
             <>
-              <h2 className={result.alreadyScanned ? "bad" : "ok"}>
-                {result.alreadyScanned ? "⚠ Valid, but already scanned" : "✓ Valid"}
-              </h2>
+              <h1>{result.alreadyScanned ? "Valid, already scanned" : "Valid"}</h1>
               <p><b>{result.label}</b></p>
-              <p>Department: {result.department || "—"}</p>
-              <small>
+              <p className="muted">Department: {result.department || "—"}</p>
+              <p className="muted">
                 {result.alreadyScanned
                   ? `Scan #${result.scanCount}. First scanned ${new Date(result.firstScannedAt).toLocaleString()}`
                   : "First scan recorded"}
-              </small>
+              </p>
             </>
           ) : (
-            <h2 className="bad">✗ Invalid code</h2>
+            <h1>Invalid code</h1>
           )}
         </div>
       )}
-      <a href="/">← Home</a>
     </>
   );
 }

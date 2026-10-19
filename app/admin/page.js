@@ -45,63 +45,74 @@ export default function Admin() {
     load();
   }
 
+  function logout() { setAuthed(false); setPw(""); setOut(null); setCodes([]); }
+
   if (!authed)
     return (
-      <>
-        <h1>Admin</h1>
-        <input type="password" placeholder="Admin password" value={pw} onChange={(e) => setPw(e.target.value)} />
-        <button onClick={() => load()}>Log in</button>
-        {err && <p className="bad">{err}</p>}
-        <a href="/">← Home</a>
-      </>
+      <div className="card" style={{ maxWidth: 380, margin: "40px auto" }}>
+        <h1>Log in</h1>
+        <p className="muted">Enter the admin password to manage departments and QR codes.</p>
+        <form onSubmit={(e) => { e.preventDefault(); load(); }}>
+          <input type="password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          <button className="block" type="submit">Log in</button>
+        </form>
+        {err && <p className="t-bad" style={{ marginTop: 12 }}>{err}</p>}
+      </div>
     );
 
   return (
     <>
-      <h1>Admin</h1>
-
-      <div className="card">
-        <h3>Departments</h3>
-        <input placeholder="New department name" value={newDept} onChange={(e) => setNewDept(e.target.value)} />
-        <button onClick={addDept}>Add department</button>
-        <small>{depts.map((d) => d.name).join(", ") || "None yet"}</small>
+      <div className="row">
+        <h1>Dashboard</h1>
+        <button className="ghost" onClick={logout}>Log out</button>
       </div>
 
       <div className="card">
-        <h3>Generate QR code</h3>
+        <h3>Departments</h3>
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <input placeholder="New department name" value={newDept} onChange={(e) => setNewDept(e.target.value)} />
+          <button onClick={addDept}>Add</button>
+        </div>
+        <p className="muted">{depts.map((d) => d.name).join(" · ") || "No departments yet"}</p>
+      </div>
+
+      <div className="card">
+        <h3>New QR code</h3>
         <input placeholder="Label (name, ticket, certificate no.)" value={label} onChange={(e) => setLabel(e.target.value)} />
-        <select value={deptId} onChange={(e) => setDeptId(e.target.value)} style={{ width: "100%", padding: 12 }}>
+        <select value={deptId} onChange={(e) => setDeptId(e.target.value)}>
           <option value="">No department</option>
           {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        <button onClick={generate}>Generate</button>
-        {err && <p className="bad">{err}</p>}
+        <button className="block" onClick={generate}>Generate</button>
+        {err && <p className="t-bad" style={{ marginTop: 12 }}>{err}</p>}
         {out && (
-          <>
-            <img src={out.qr} alt="QR code" />
-            <a className="btn" href={out.qr} download="qr-code.png">Download PNG</a>
-          </>
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <img src={out.qr} alt="QR code" width="240" />
+            <a className="btn block" style={{ marginTop: 12 }} href={out.qr} download="qr-code.png">Download PNG</a>
+          </div>
         )}
       </div>
 
       <div className="card">
-        <h3>Codes</h3>
-        <select value={filter} onChange={(e) => { setFilter(e.target.value); load(e.target.value); }} style={{ width: "100%", padding: 12 }}>
-          <option value="">All departments</option>
-          {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", fontSize: 14, marginTop: 8 }}>
-            <thead><tr><th align="left">Label</th><th align="left">Dept</th><th>Scans</th></tr></thead>
+        <div className="row">
+          <h3>Codes</h3>
+          <select style={{ width: "auto", margin: 0 }} value={filter} onChange={(e) => { setFilter(e.target.value); load(e.target.value); }}>
+            <option value="">All departments</option>
+            {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        <div style={{ overflowX: "auto", marginTop: 12 }}>
+          <table>
+            <thead><tr><th>Label</th><th>Department</th><th>Scans</th></tr></thead>
             <tbody>
               {codes.map((c) => (
-                <tr key={c.id}><td>{c.label}</td><td>{c.department || "—"}</td><td align="center">{c.scan_count}</td></tr>
+                <tr key={c.id}><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td></tr>
               ))}
+              {!codes.length && <tr><td colSpan="3" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
-      <a href="/">← Home</a>
     </>
   );
 }
