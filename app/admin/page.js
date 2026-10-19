@@ -34,6 +34,12 @@ export default function Admin() {
   const [label, setLabel] = useState("");
   const [qty, setQty] = useState(1);
   const [selected, setSelected] = useState([]);
+  const [pName, setPName] = useState("");
+  const [pDept, setPDept] = useState("");
+  const [pZone, setPZone] = useState("");
+  const [pPhoto, setPPhoto] = useState("");
+  const [perr, setPerr] = useState("");
+  const [fileKey, setFileKey] = useState(0);
   const [deptId, setDeptId] = useState("");
   const [filter, setFilter] = useState("");
   const [out, setOut] = useState(null);
@@ -70,6 +76,48 @@ export default function Admin() {
     setOut(await Promise.all(d.codes.map(async (c) => ({ ...c, card: await drawCard(c) }))));
     setLabel("");
     load();
+  }
+
+  function readPhoto(file) {
+    if (!file) return setPPhoto("");
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 240 / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        setPPhoto(cv.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
+  async function registerPerson() {
+    setPerr(""); setOut(null);
+    if (!pName.trim()) return setPerr("Enter the person’s name");
+    const r = await fetch("/api/codes", {
+      method: "POST", headers,
+      body: JSON.stringify({ label: pName, departmentId: pDept, zone: pZone, photo: pPhoto, quantity: 1 }),
+    });
+    const d = await r.json();
+    if (!r.ok) return setPerr(d.error || "Failed");
+    setOut(await Promise.all(d.codes.map(async (c) => ({ ...c, card: await drawCard(c) }))));
+    setPName(""); setPZone(""); setPPhoto(""); setFileKey((k) => k + 1);
+    load();
+  }
+
+  async function removeDept(d) {
+    if (!confirm(`Delete the department “${d.name}”? Its codes will be kept but left without a department.`)) return;
+    await fetch("/api/departments", { method: "DELETE", headers, body: JSON.stringify({ id: d.id }) });
+    const f = filter === String(d.id) ? "" : filter;
+    setFilter(f);
+    if (deptId === String(d.id)) setDeptId("");
+    if (pDept === String(d.id)) setPDept("");
+    load(f);
   }
 
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -111,7 +159,30 @@ export default function Admin() {
           <input placeholder="New department name" value={newDept} onChange={(e) => setNewDept(e.target.value)} />
           <button onClick={addDept}>Add</button>
         </div>
-        <p className="muted">{depts.map((d) => d.name).join(" · ") || "No departments yet"}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {depts.map((d) => (
+            <span key={d.id} style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 4 }}>
+              {d.name}
+              <button className="ghost" style={{ padding: "0 8px", border: 0, fontSize: 18, color: "var(--bad)" }} onClick={() => removeDept(d)} aria-label={`Delete ${d.name}`}>×</button>
+            </span>
+          ))}
+          {!depts.length && <span className="muted">No departments yet</span>}
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Register a person</h3>
+        <input placeholder="Full name" value={pName} onChange={(e) => setPName(e.target.value)} />
+        <select value={pDept} onChange={(e) => setPDept(e.target.value)}>
+          <option value="">No department</option>
+          {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <input placeholder="Zone" value={pZone} onChange={(e) => setPZone(e.target.value)} />
+        <p className="muted" style={{ margin: "0 0 6px" }}>Photo</p>
+        <input key={fileKey} type="file" accept="image/*" onChange={(e) => readPhoto(e.target.files[0])} />
+        {pPhoto && <img src={pPhoto} alt="Preview" width="96" style={{ borderRadius: 12, display: "block", marginBottom: 12 }} />}
+        <button className="block" onClick={registerPerson}>Register &amp; generate QR</button>
+        {perr && <p className="t-bad" style={{ marginTop: 12 }}>{perr}</p>}
       </div>
 
       <div className="card">
@@ -159,12 +230,12 @@ export default function Admin() {
         )}
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table>
-            <thead><tr><th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th><th>Label</th><th>Department</th><th>Scans</th><th>Secret</th></tr></thead>
+            <thead><tr><th><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={codes.length > 0 && selected.length === codes.length} onChange={toggleAll} /></th><th>Label</th><th>Department</th><th>Zone</th><th>Scans</th><th>Secret</th></tr></thead>
             <tbody>
               {codes.map((c) => (
-                <tr key={c.id}><td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
+                <tr key={c.id}><td><input type="checkbox" style={{ width: "auto", margin: 0 }} checked={selected.includes(c.id)} onChange={() => toggle(c.id)} /></td><td>{c.label}</td><td>{c.department || "—"}</td><td>{c.zone || "—"}</td><td>{c.scan_count}</td><td style={{ fontFamily: "monospace" }}>{fmt(c.secret)}</td></tr>
               ))}
-              {!codes.length && <tr><td colSpan="5" className="muted">No codes yet</td></tr>}
+              {!codes.length && <tr><td colSpan="6" className="muted">No codes yet</td></tr>}
             </tbody>
           </table>
         </div>

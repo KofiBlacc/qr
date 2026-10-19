@@ -15,3 +15,13 @@ export async function POST(req) {
   await sql`INSERT INTO departments (name) VALUES (${clean}) ON CONFLICT DO NOTHING`;
   return Response.json({ ok: true });
 }
+
+export async function DELETE(req) {
+  if (!isAdmin(req)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const id = Number((await req.json()).id);
+  if (!id) return Response.json({ error: "Invalid department" }, { status: 400 });
+  const sql = await getDb();
+  await sql`UPDATE codes SET department_id = NULL WHERE department_id = ${id}`;
+  await sql`DELETE FROM departments WHERE id = ${id}`;
+  return Response.json({ ok: true });
+}

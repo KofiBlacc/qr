@@ -8,10 +8,10 @@ export async function POST(req) {
   if (secret) {
     const s = normSecret(secret);
     if (s.length < 6) return Response.json({ valid: false });
-    [row] = await sql`SELECT c.id, c.label, c.scan_count, c.first_scanned_at, d.name AS department
+    [row] = await sql`SELECT c.id, c.label, c.zone, c.photo, c.scan_count, c.first_scanned_at, d.name AS department
       FROM codes c LEFT JOIN departments d ON d.id = c.department_id WHERE c.secret = ${s}`;
   } else if (isUuid(code)) {
-    [row] = await sql`SELECT c.id, c.label, c.scan_count, c.first_scanned_at, d.name AS department
+    [row] = await sql`SELECT c.id, c.label, c.zone, c.photo, c.scan_count, c.first_scanned_at, d.name AS department
       FROM codes c LEFT JOIN departments d ON d.id = c.department_id WHERE c.id = ${code}`;
   }
   if (!row) return Response.json({ valid: false });
@@ -21,6 +21,8 @@ export async function POST(req) {
     valid: true,
     label: row.label,
     department: row.department,
+    zone: row.zone,
+    photo: row.photo,
     alreadyScanned: row.scan_count > 0,
     firstScannedAt: row.first_scanned_at,
     scanCount: row.scan_count + 1,

@@ -8,7 +8,7 @@ export default async function Verify({ searchParams }) {
   let row = null;
   if (isUuid(code)) {
     const sql = await getDb();
-    [row] = await sql`SELECT c.label, c.scan_count, c.first_scanned_at, d.name AS department
+    [row] = await sql`SELECT c.label, c.zone, c.photo, c.scan_count, c.first_scanned_at, d.name AS department
       FROM codes c LEFT JOIN departments d ON d.id = c.department_id WHERE c.id = ${code}`;
   }
   return (
@@ -17,8 +17,10 @@ export default async function Verify({ searchParams }) {
       {row ? (
         <>
           <h1>Valid</h1>
+          {row.photo && <img src={row.photo} alt="" style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", margin: "0 auto 12px", display: "block" }} />}
           <p><b>{row.label}</b></p>
           <p className="muted">Department: {row.department || "—"}</p>
+          {row.zone && <p className="muted">Zone: {row.zone}</p>}
           <p className="muted">
             {row.scan_count > 0
               ? `Scanned ${row.scan_count} time(s). First: ${new Date(row.first_scanned_at).toLocaleString()}`
